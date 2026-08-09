@@ -1,37 +1,29 @@
 # Dictaste for macOS
 
-Native menu bar app — system-wide dictation + highlight-to-speak.
+> **Canonical monorepo (star this for free Developer plan):**  
+> https://github.com/johnmatveyev-lab/dictaste  
+> Source lives in `mac/` there (Apache-2.0).
 
-**Product site:** https://dictaste.vercel.app  
-**Developer free plan:** star https://github.com/johnmatveyev-lab/dictaste then unlock at https://dictaste.vercel.app/developers/setup  
+This repository remains a **mirror** of the Mac client for historical links.
 
-## Install (developers)
+## Build
+
+Prefer the monorepo:
 
 ```bash
-git clone https://github.com/johnmatveyev-lab/dictaste-mac.git
-cd dictaste-mac
-brew install xcodegen   # once
-xcodegen generate
-chmod +x scripts/install_local.sh
+git clone https://github.com/johnmatveyev-lab/dictaste.git
+cd dictaste/mac
+brew install xcodegen && xcodegen generate
 ./scripts/install_local.sh
-# → /Applications/Dictaste.app
 ```
 
-Full guide: https://github.com/johnmatveyev-lab/dictaste/blob/main/docs/INSTALL_MAC.md
+Or from this repo (same layout as monorepo `mac/`):
 
-## Permissions
+```bash
+brew install xcodegen
+xcodegen generate
+./scripts/install_local.sh
+```
 
-- Microphone  
-- Accessibility  
-- Speech Recognition  
-
-## After install
-
-1. Menu bar → **Account & Settings…**  
-2. Paste license (`dt_live_…`) from developer setup  
-3. Paste your OpenAI-compatible API key (Developer plan)  
-4. Hold **fn 🌐** to dictate · highlight text to hear it  
-
-## Note on names
-
-Xcode target/product may still use the historical target name `FlowDictate` internally; the installed app is **Dictaste.app** with display name Dictaste. Bundle id remains stable for Accessibility TCC.
+**Product:** https://dictaste.vercel.app  
+**Free for developers:** star `johnmatveyev-lab/dictaste` → https://dictaste.vercel.app/developers/setup  
