@@ -31,6 +31,7 @@ struct AccountView: View {
     @State private var tester = FlowReader()
     @State private var showVoiceClone = false
     @State private var clonedVoices: [ClonedVoice] = VoiceCloneService.loadLocal()
+    @State private var confirmReset = false
 
     private var systemVoices: [AVSpeechSynthesisVoice] {
         AVSpeechSynthesisVoice.speechVoices()
@@ -154,6 +155,13 @@ struct AccountView: View {
             }
 
             Section {
+                Text("API keys and license stay on this Mac only. Dictaste never uploads them to our servers. New installs start with clean defaults.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Section {
                 HStack {
                     Button("Save") { saveAll() }
                         .keyboardShortcut(.defaultAction)
@@ -172,6 +180,21 @@ struct AccountView: View {
                         .foregroundStyle(.green)
                 }
             }
+
+            Section("Privacy") {
+                Button("Reset all settings & keys…", role: .destructive) {
+                    confirmReset = true
+                }
+                Text("Clears license, API keys, voices, and options on this Mac. Does not change your website account.")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .alert("Reset all settings?", isPresented: $confirmReset) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) { resetAllLocalSettings() }
+        } message: {
+            Text("This removes API keys, license, and preferences stored on this Mac only.")
         }
         .formStyle(.grouped)
         .padding()
@@ -282,5 +305,42 @@ struct AccountView: View {
         UserDefaults.standard.set(autoRead, forKey: "flowReadAuto")
         saved = true
         Task { await usage.refreshFromServer() }
+    }
+
+    /// Wipe local secrets + prefs so this Mac matches a fresh install.
+    private func resetAllLocalSettings() {
+        let keys = [
+            "proLicenseKey", "openAIAPIKey", "geminiAPIKey", "grokAPIKey",
+            "preferManagedPro", "apiBaseURL", "openAIModel",
+            "flowReadProvider", "flowReadRate", "flowReadSystemVoice",
+            "flowReadOpenAIVoice", "flowReadGeminiVoice", "flowReadGrokVoice",
+            "flowReadAuto", "flowReadPromptV2",
+            "optionTapEnabled", "polishEnabled", "dictationHistory",
+            "readPromptPosX", "readPromptPosY",
+        ]
+        for k in keys {
+            UserDefaults.standard.removeObject(forKey: k)
+        }
+        CloudPolisher.licenseKey = ""
+        CloudPolisher.openAIKey = ""
+        CloudPolisher.preferManagedPro = true
+        FlowReader.openAIKey = ""
+        FlowReader.geminiKey = ""
+        FlowReader.grokKey = ""
+
+        licenseKey = ""
+        openAIKey = ""
+        geminiKey = ""
+        grokKey = ""
+        preferManaged = true
+        provider = .system
+        rate = 1.0
+        systemVoiceId = ""
+        openAIVoice = "nova"
+        geminiVoice = "Kore"
+        grokVoice = "Ara"
+        autoRead = false
+        saved = true
+        confirmReset = false
     }
 }
