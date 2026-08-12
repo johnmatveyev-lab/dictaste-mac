@@ -25,7 +25,7 @@ struct AccountView: View {
     @State private var geminiVoice = UserDefaults.standard.string(forKey: "flowReadGeminiVoice") ?? "Kore"
     @State private var grokVoice = UserDefaults.standard.string(forKey: "flowReadGrokVoice") ?? "Ara"
     @State private var autoRead: Bool = {
-        if UserDefaults.standard.object(forKey: "flowReadAuto") == nil { return true }
+        if UserDefaults.standard.object(forKey: "flowReadAuto") == nil { return false }
         return UserDefaults.standard.bool(forKey: "flowReadAuto")
     }()
     @State private var tester = FlowReader()
@@ -41,7 +41,7 @@ struct AccountView: View {
     var body: some View {
         Form {
             Section {
-                Text("Drag to highlight text anywhere — reading starts when you release the mouse. Space = pause/play · Esc = stop. No copy/paste needed.")
+                Text("Drag to highlight text anywhere — a Read button appears near the cursor. Click Read to speak. Pause / Stop stay on the chip. Space = pause · Esc = cancel.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -93,7 +93,7 @@ struct AccountView: View {
             }
 
             Section("Highlight-to-speak") {
-                Toggle("Auto-read when text is selected", isOn: $autoRead)
+                Toggle("Start immediately (skip Read button)", isOn: $autoRead)
                 Picker("Provider", selection: $provider) {
                     ForEach(FlowReader.Provider.allCases) { p in
                         Text(p.label).tag(p)

@@ -41,6 +41,8 @@ final class AppState: ObservableObject {
     @Published var modelStatus = "Checking speech model…"
     @Published var modelReady = false
     @Published var history: [DictationRecord] = []
+    /// Text selected for highlight-to-speak; shown in the Read chip until dismissed or finished.
+    @Published var pendingReadText: String?
     var usage = UsageStore.shared
 
     let permissions = PermissionsModel()
@@ -51,6 +53,7 @@ final class AppState: ObservableObject {
     private let recorder = AudioRecorder()
     private let inserter = TextInserter()
     private var hud: HUDController?
+    private var readPrompt: ReadPromptController?
     private var onboardingWindow: NSWindow?
     private var vocabularyWindow: NSWindow?
     private var accountWindow: NSWindow?
@@ -70,7 +73,16 @@ final class AppState: ObservableObject {
     private static let agentOptOutKey = "backgroundAgentOptOut"
 
     func start() {
+        // One-time: old builds defaulted to instant auto-read on every highlight.
+        // v2 shows a Read chip instead unless the user opts into "start immediately".
+        if UserDefaults.standard.object(forKey: "flowReadPromptV2") == nil {
+            UserDefaults.standard.set(false, forKey: "flowReadAuto")
+            UserDefaults.standard.set(true, forKey: "flowReadPromptV2")
+            flowReader.autoReadEnabled = false
+        }
+
         hud = HUDController(appState: self)
+        readPrompt = ReadPromptController(appState: self)
         // Always-visible mini pill; expands only while dictating.
         hud?.show()
         loadHistory()
@@ -100,7 +112,7 @@ final class AppState: ObservableObject {
         hotkey.onToggleTap = { [weak self] in self?.handleToggleTap() }
         hotkey.onEscape = { [weak self] in
             guard let self else { return }
-            if self.phase == .reading {
+            if self.pendingReadText != nil || self.phase == .reading {
                 self.stopFlowRead()
             } else {
                 self.cancelDictation()
@@ -267,6 +279,14 @@ final class AppState: ObservableObject {
     /// Returns true if the key was handled (should not propagate).
     @discardableResult
     private func handleReadingKey(_ event: NSEvent) -> Bool {
+        // Esc dismisses pending Read chip or stops playback
+        if event.keyCode == 53 {
+            if pendingReadText != nil || phase == .reading {
+                stopFlowRead()
+                return true
+            }
+            return false
+        }
         guard phase == .reading else { return false }
         // Space without cmd/ctrl/opt → play/pause
         if event.keyCode == 49,
@@ -274,15 +294,10 @@ final class AppState: ObservableObject {
             flowReader.togglePlayPause()
             return true
         }
-        // Esc → cancel + clear + neutral
-        if event.keyCode == 53 {
-            stopFlowRead()
-            return true
-        }
         return false
     }
 
-    /// Mouse drag-highlight → capture text → auto-read (no menu, no Notes).
+    /// Mouse drag-highlight → capture text → Read chip (or instant if setting on).
     private func startSelectionMonitor() {
         selectionMonitor.onSelection = { [weak self] text in
             self?.handleAutoSelection(text)
@@ -295,18 +310,56 @@ final class AppState: ObservableObject {
 
     private func handleAutoSelection(_ text: String) {
         flowReader.reloadSettingsFromDefaults()
-        guard flowReader.autoReadEnabled else { return }
         switch phase {
         case .recording, .transcribing, .polishing, .inserting:
             return
         default:
             break
         }
-        // Already reading this exact text
+        // Already reading this exact text — keep controls, don't restart
         if phase == .reading, flowReader.text == text { return }
-        // New drag of different text while reading → switch
-        // Same text after natural finish: SelectionMonitor dedupes until re-drag (resetDedupe on Esc)
+
+        // Optional power-user path: start immediately (Account toggle).
+        if flowReader.autoReadEnabled {
+            pendingReadText = text
+            readPrompt?.showNearCursor()
+            startFlowRead(text: text)
+            return
+        }
+
+        // Default: show Read chip near cursor — user must click to speak.
+        presentReadPrompt(text: text)
+    }
+
+    /// Show floating Read button near the cursor for the given selection.
+    func presentReadPrompt(text: String) {
+        // If we were mid-read, stop audio but keep the new selection ready.
+        if phase == .reading {
+            readerWatchTask?.cancel()
+            readerWatchTask = nil
+            flowReader.stop(clearText: false)
+            hud?.setInteractive(false)
+            finishCycle()
+        }
+        pendingReadText = text
+        lastReadFingerprint = text
+        readPrompt?.showNearCursor()
+    }
+
+    /// User clicked Read on the chip.
+    func confirmPendingRead() {
+        guard let text = pendingReadText, !text.isEmpty else { return }
         startFlowRead(text: text)
+        // Keep chip visible for pause / stop while speaking
+        readPrompt?.showNearCursor()
+    }
+
+    /// Dismiss chip without reading (or after user closes it).
+    func dismissReadPrompt() {
+        pendingReadText = nil
+        lastReadFingerprint = ""
+        selectionMonitor.resetDedupe()
+        readPrompt?.hide()
     }
 
     /// Manual trigger from menu (still supported).
@@ -331,18 +384,21 @@ final class AppState: ObservableObject {
                 }
                 return
             }
-            self.startFlowRead(text: text)
+            // Menu path still shows the chip so user can confirm (consistent UX).
+            self.presentReadPrompt(text: text)
         }
     }
 
     func startFlowRead(text: String) {
         dismissTask?.cancel()
         if phase == .recording { cancelDictation() }
+        pendingReadText = text
         lastReadFingerprint = text
         phase = .reading
         volatileText = text
         hud?.show()
         hud?.setInteractive(true)
+        readPrompt?.showNearCursor()
         flowReader.speak(text)
         readerWatchTask?.cancel()
         readerWatchTask = Task { [weak self] in
@@ -380,7 +436,9 @@ final class AppState: ObservableObject {
         flowReader.stop(clearText: true)
         // Allow re-drag of the same text to read again
         lastReadFingerprint = ""
+        pendingReadText = nil
         selectionMonitor.resetDedupe()
+        readPrompt?.hide()
         hud?.setInteractive(false)
         switch phase {
         case .reading, .error:
@@ -395,6 +453,10 @@ final class AppState: ObservableObject {
         readerWatchTask?.cancel()
         readerWatchTask = nil
         flowReader.stop(clearText: false)
+        // Leave chip for a moment with text so user can re-Read, then hide.
+        // Actually hide and clear — re-drag to get chip again.
+        pendingReadText = nil
+        readPrompt?.hide()
         hud?.setInteractive(false)
         if phase == .reading {
             finishCycle()

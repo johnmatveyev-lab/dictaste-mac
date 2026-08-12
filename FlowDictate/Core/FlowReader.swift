@@ -72,9 +72,10 @@ final class FlowReader: NSObject, ObservableObject, AVSpeechSynthesizerDelegate 
         didSet { UserDefaults.standard.set(grokVoice, forKey: "flowReadGrokVoice") }
     }
 
-    /// Auto-read when text is selected (default on).
+    /// When true, start speaking as soon as text is selected (skips the Read button).
+    /// Default is false — show a Read chip near the cursor instead.
     @Published var autoReadEnabled: Bool = {
-        if UserDefaults.standard.object(forKey: "flowReadAuto") == nil { return true }
+        if UserDefaults.standard.object(forKey: "flowReadAuto") == nil { return false }
         return UserDefaults.standard.bool(forKey: "flowReadAuto")
     }() {
         didSet { UserDefaults.standard.set(autoReadEnabled, forKey: "flowReadAuto") }
