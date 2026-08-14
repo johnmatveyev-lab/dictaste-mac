@@ -350,6 +350,7 @@ final class AppState: ObservableObject {
     func confirmPendingRead() {
         guard let text = pendingReadText, !text.isEmpty else { return }
         startFlowRead(text: text)
+        GrowthTrack.once("first_read")
         // Keep chip visible for pause / stop while speaking
         readPrompt?.showNearCursor()
     }
@@ -545,6 +546,10 @@ final class AppState: ObservableObject {
                 volatileText = finalText
                 phase = .inserting
                 inserter.insert(finalText + " ")
+                GrowthTrack.once("first_dictation")
+                if polishEnabled && finalText != cleaned {
+                    GrowthTrack.once("first_polish")
+                }
                 addToHistory(finalText, duration: duration)
                 dismissTask = Task {
                     try? await Task.sleep(for: .seconds(0.9))

@@ -8,7 +8,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 OUT="$ROOT/dist"
-VERSION="${MARKETING_VERSION:-0.1.4}"
+VERSION="${MARKETING_VERSION:-0.1.5}"
 NOTARY_PROFILE="${NOTARY_PROFILE:-DictasteNotary}"
 # ASC API key fallback (works when keychain profile can't be written in headless agents)
 ASC_KEY_ID="${ASC_KEY_ID:-${APP_STORE_CONNECT_KEY_ID:-}}"
